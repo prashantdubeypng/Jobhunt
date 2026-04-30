@@ -12,6 +12,8 @@ from .views import (
     OutreachMessageListCreateView,
     ResumeDetailView,
     ResumeListCreateView,
+    ResumeUploadCompleteView,
+    ResumeUploadInitiateView,
     UserPreferenceView,
 )
 
@@ -23,6 +25,8 @@ urlpatterns = [
     path("me/", CurrentUserView.as_view(), name="current-user"),
     path("preferences/", UserPreferenceView.as_view(), name="user-preferences"),
     path("dashboard/", DashboardView.as_view(), name="dashboard"),
+    path("resumes/upload/initiate/", ResumeUploadInitiateView.as_view(), name="resume-upload-initiate"),
+    path("resumes/<int:pk>/upload/complete/", ResumeUploadCompleteView.as_view(), name="resume-upload-complete"),
     path("resumes/", ResumeListCreateView.as_view(), name="resume-list-create"),
     path("resumes/<int:pk>/", ResumeDetailView.as_view(), name="resume-detail"),
     path("applications/", JobApplicationListCreateView.as_view(), name="application-list-create"),

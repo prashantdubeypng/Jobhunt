@@ -11,3 +11,11 @@ venv/
 .env
 .idea/
 .vscode/
+
+# Django migrations
+**/migrations/
+!**/migrations/__init__.py
+
+# Documentation folders
+doc/
+docs/

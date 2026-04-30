@@ -62,6 +62,12 @@ class UserPreference(TimeStampedModel):
 
 
 class Resume(TimeStampedModel):
+	class UploadStatus(models.TextChoices):
+		PENDING = "pending", "Pending"
+		UPLOADING = "uploading", "Uploading"
+		COMPLETED = "completed", "Completed"
+		FAILED = "failed", "Failed"
+
 	user = models.ForeignKey(
 		settings.AUTH_USER_MODEL,
 		on_delete=models.CASCADE,
@@ -69,6 +75,18 @@ class Resume(TimeStampedModel):
 	)
 	title = models.CharField(max_length=255)
 	file = models.FileField(upload_to="resumes/", blank=True, null=True)
+	s3_key = models.CharField(max_length=512, blank=True, null=True, db_index=True)
+	s3_url = models.URLField(blank=True)
+	original_filename = models.CharField(max_length=255, blank=True)
+	content_type = models.CharField(max_length=120, blank=True)
+	file_size = models.BigIntegerField(null=True, blank=True)
+	upload_status = models.CharField(
+		max_length=20,
+		choices=UploadStatus.choices,
+		default=UploadStatus.PENDING,
+		db_index=True,
+	)
+	uploaded_at = models.DateTimeField(null=True, blank=True, db_index=True)
 	parsed_text = models.TextField(blank=True)
 	notes = models.TextField(blank=True)
 	is_primary = models.BooleanField(default=False, db_index=True)
@@ -78,6 +96,7 @@ class Resume(TimeStampedModel):
 		indexes = [
 			models.Index(fields=["user", "is_primary"], name="resume_user_primary_idx"),
 			models.Index(fields=["user", "-created_at"], name="resume_user_created_idx"),
+			models.Index(fields=["user", "upload_status"], name="resume_user_upload_idx"),
 		]
 
 	def __str__(self) -> str:

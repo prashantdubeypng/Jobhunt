@@ -69,6 +69,16 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class ResumeUploadInitiateSerializer(serializers.Serializer):
+    title = serializers.CharField(max_length=255)
+    filename = serializers.CharField(max_length=255)
+    content_type = serializers.CharField(max_length=120, required=False, allow_blank=True)
+    file_size = serializers.IntegerField(required=False, min_value=1)
+    parsed_text = serializers.CharField(required=False, allow_blank=True)
+    notes = serializers.CharField(required=False, allow_blank=True)
+    is_primary = serializers.BooleanField(required=False, default=False)
+
+
 class ResumeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Resume
@@ -76,13 +86,30 @@ class ResumeSerializer(serializers.ModelSerializer):
             "id",
             "title",
             "file",
+            "s3_key",
+            "s3_url",
+            "original_filename",
+            "content_type",
+            "file_size",
+            "upload_status",
+            "uploaded_at",
             "parsed_text",
             "notes",
             "is_primary",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["created_at", "updated_at"]
+        read_only_fields = [
+            "s3_key",
+            "s3_url",
+            "original_filename",
+            "content_type",
+            "file_size",
+            "upload_status",
+            "uploaded_at",
+            "created_at",
+            "updated_at",
+        ]
 
 
 class ApplicationStatusHistorySerializer(serializers.ModelSerializer):

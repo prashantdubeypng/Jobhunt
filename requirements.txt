@@ -3,3 +3,5 @@ djangorestframework
 pytest
 pytest-django
 requests
+boto3
+django-cors-headers
