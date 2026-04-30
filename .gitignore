@@ -4,6 +4,7 @@ __pycache__/
 *.pyd
 .env
 .env.*
+client_secret_*.json
 db.sqlite3
 *.log
 venv/
