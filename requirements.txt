@@ -2,3 +2,4 @@ Django
 djangorestframework
 pytest
 pytest-django
+requests
