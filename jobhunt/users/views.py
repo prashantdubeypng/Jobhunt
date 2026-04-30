@@ -2,7 +2,8 @@ from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib.auth import logout
-from django.shortcuts import redirect
+from django.shortcuts import get_object_or_404, redirect
+from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -11,12 +12,14 @@ from rest_framework.views import APIView
 
 from .Services.auth_service import GoogleAuthenticationService
 from .Services.dashboard_service import DashboardService
+from .Services.s3_service import S3PresignedUploadService
 from .authentication import AppTokenAuthentication
 from .models import JobApplication, OutreachMessage, Resume, UserPreference
 from .serializers import (
 	JobApplicationSerializer,
 	OutreachMessageSerializer,
 	ResumeSerializer,
+	ResumeUploadInitiateSerializer,
 	UserPreferenceSerializer,
 	UserSerializer,
 )
@@ -146,6 +149,63 @@ class ResumeListCreateView(ProtectedListCreateAPIView):
 		serializer.save(user=self.request.user)
 
 
+class ResumeUploadInitiateView(ProtectedAPIView):
+	def post(self, request, *args, **kwargs):
+		serializer = ResumeUploadInitiateSerializer(data=request.data)
+		serializer.is_valid(raise_exception=True)
+
+		resume = Resume.objects.create(
+			user=request.user,
+			title=serializer.validated_data["title"],
+			original_filename=serializer.validated_data["filename"],
+			content_type=serializer.validated_data.get("content_type", ""),
+			file_size=serializer.validated_data.get("file_size"),
+			parsed_text=serializer.validated_data.get("parsed_text", ""),
+			notes=serializer.validated_data.get("notes", ""),
+			is_primary=serializer.validated_data.get("is_primary", False),
+			upload_status=Resume.UploadStatus.UPLOADING,
+		)
+
+		if resume.is_primary:
+			Resume.objects.filter(user=request.user, is_primary=True).exclude(pk=resume.pk).update(is_primary=False)
+
+		upload_service = S3PresignedUploadService()
+		upload_data = upload_service.create_presigned_upload(
+			user_id=request.user.id,
+			resume_id=resume.id,
+			filename=resume.original_filename or serializer.validated_data["filename"],
+			content_type=resume.content_type or "application/octet-stream",
+		)
+		resume.s3_key = upload_data.s3_key
+		resume.s3_url = upload_data.s3_url
+		resume.save(update_fields=["s3_key", "s3_url", "upload_status", "updated_at"])
+
+		return Response(
+			{
+				"id": resume.id,
+				"resume": ResumeSerializer(resume).data,
+				"presigned_url": upload_data.presigned_url,
+				"s3_key": upload_data.s3_key,
+				"s3_url": upload_data.s3_url,
+				"expires_in": upload_data.expires_in,
+			},
+			status=status.HTTP_201_CREATED,
+		)
+
+
+class ResumeUploadCompleteView(ProtectedAPIView):
+	def post(self, request, pk, *args, **kwargs):
+		resume = get_object_or_404(Resume, pk=pk, user=request.user)
+		resume.upload_status = Resume.UploadStatus.COMPLETED
+		resume.uploaded_at = timezone.now()
+		if request.data.get("s3_key"):
+			resume.s3_key = request.data["s3_key"]
+		if request.data.get("s3_url"):
+			resume.s3_url = request.data["s3_url"]
+		resume.save(update_fields=["s3_key", "s3_url", "upload_status", "uploaded_at", "updated_at"])
+		return Response(ResumeSerializer(resume).data, status=status.HTTP_200_OK)
+
+
 class ResumeDetailView(ProtectedRetrieveUpdateDestroyAPIView):
 	serializer_class = ResumeSerializer
 
@@ -157,6 +217,14 @@ class ResumeDetailView(ProtectedRetrieveUpdateDestroyAPIView):
 		if is_primary:
 			Resume.objects.filter(user=self.request.user, is_primary=True).exclude(pk=self.get_object().pk).update(is_primary=False)
 		serializer.save()
+
+	def perform_destroy(self, instance):
+		if instance.s3_key:
+			try:
+				S3PresignedUploadService().delete_object(instance.s3_key)
+			except Exception:
+				pass
+		instance.delete()
 
 
 class JobApplicationListCreateView(ProtectedListCreateAPIView):

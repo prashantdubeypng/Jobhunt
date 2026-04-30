@@ -11,3 +11,7 @@ venv/
 .env
 .idea/
 .vscode/
+
+# Documentation folders
+doc/
+docs/
